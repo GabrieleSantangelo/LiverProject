@@ -1,5 +1,4 @@
-clear; clc;
-
+clear; clc; clf;
 disp("Code Run")
 
 % Option to visualize slices
@@ -31,7 +30,8 @@ maxValue = 65536;
 
 % Number of bins for histogram
 nBins = 65536; % Number of bins for histogram
-[meanValue, hMean, hMean_clean, normalizedSlice] = processSlices(trainVolume, nBins, roiParams);
+[meanValue, normalizedSlice] = normalizingSlices(trainVolume, roiParams, maxValue);
+[hMean, hMean_clean] = histogramOnAllSlices(normalizedSlice, nBins);
 
 %%
 fprintf('Mean value in ROI: %.2f\n', meanValue);
@@ -62,7 +62,6 @@ mask = imdilate(double(mask), strel("disk", 4)); % Dilation to remove small hole
 mask = imerode(mask, strel("disk", 2)); % Erosion to remove small holes
 mask = imfill(mask, "holes"); % Fill holes
 mask = imfilter(mask, fspecial("gaussian", 10)); % Gaussian filter to smooth the mask
-
 % ------------ START OF TEST CODE ----------- %
 
 tempSlice = uint16(double(stretchedSlice(:,:,slice_idx)) .* double(1 - mask));
