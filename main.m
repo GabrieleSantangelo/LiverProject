@@ -1,5 +1,4 @@
-clear; clc;
-
+clear; clc; clf;
 disp("Code Run")
 
 % Option to visualize slices
@@ -29,12 +28,14 @@ maxValue = 65536;
 
 % Number of bins for histogram
 nBins = 65536; % Number of bins for histogram
-[meanValue, hMean, hMean_clean, normalizedSlice] = processSlices(trainVolume, nBins, roiParams);
+[meanValue, normalizedSlice] = normalizingSlices(trainVolume, roiParams, maxValue);
+[hMean, hMean_clean] = histogramOnAllSlices(normalizedSlice, nBins);
+
 %%
 fprintf('Mean value in ROI: %.2f\n', meanValue);
 
 % Visualize mean histogram of all slices
-plotHistograms(hMean, hMean_clean, nBins);
+plotHistograms(hMean, hMean_clean);
 
 % Group histogram data
 groupSize = 2000;
@@ -58,21 +59,24 @@ mask = imdilate(double(mask), strel("disk", 3)); % Dilation to remove small hole
 mask = imfill(mask, "holes"); % Fill holes
 mask = imfilter(mask, fspecial("gaussian", 10)); % Gaussian filter to smooth the mask
 %%
-
 % ------------ START OF TEST CODE ----------- %
 
 tempSlice = uint16(double(stretchedSlice(:,:,slice_idx)) .* double(1 - mask));
 stretchedSlice(:,:,slice_idx) = tempSlice;
 
 % Visualizzazione della slice modificata
+figure;
 imshow(stretchedSlice(:,:,slice_idx));
 stretchedSlice = stretchSlices(stretchedSlice, 0.15, 0.3, 0.5);
 
 % Visualizzazione della slice modificata
+figure;
 imshow(stretchedSlice(:,:,slice_idx));
 se = strel("arbitrary", 2);
 
+figure;
 imshow(imfill(imopen(imfilter(stretchedSlice(:,:,slice_idx), fspecial("gaussian", 10)), se) > nBins / 3, "holes"))
+figure;
 imshow(imclose(stretchedSlice(:,:,slice_idx), se))
 
 if visualizeSlicesFlag
