@@ -1,19 +1,22 @@
 clear; clc;
 
+disp("Code Run")
+
 % Option to visualize slices
-visualizeSlices = true;
+visualizeSlicesFlag = false;
+
+
+
 
 % Load the slices from files
-[trainVolume, labelVolume] = loadNiiFile(...
-    imagesPath = "/Task03_Liver/imagesTr/liver_80.nii.gz",  ...
-    labelsPath = "/Task03_Liver/labelsTr/liver_80.nii.gz"   ...
-);
+[trainVolume, labelVolume] = loadNiiFile('/home/santal/Documents/University/1-anno/ImageProcessing/LiverProject/data/imagesTr/liver_80.nii.gz', '/home/santal/Documents/University/1-anno/ImageProcessing/LiverProject/data/labelsTr/liver_80.nii.gz');
+
 
 % Visualize the slices
-if visualizeSlices
+if visualizeSlicesFlag
     visualizeSlices(trainVolume, labelVolume);
 end
-
+%%
 % Define the region of interest (ROI) parameters for cross normalization
 roiParams.x = 42;
 roiParams.y = 13;
@@ -26,8 +29,8 @@ maxValue = 65536;
 
 % Number of bins for histogram
 nBins = 65536; % Number of bins for histogram
-[meanValue, hMean, hMean_clean, normalizedSlice] = processSlices(TrainVolume, nBins, roiParams);
-
+[meanValue, hMean, hMean_clean, normalizedSlice] = processSlices(trainVolume, nBins, roiParams);
+%%
 fprintf('Mean value in ROI: %.2f\n', meanValue);
 
 % Visualize mean histogram of all slices
@@ -40,6 +43,7 @@ groupSize = 2000;
 [lowerIntensity, upperIntensity] = bandDetection(grouped_hMean_clean);
 
 plotGroupedHistograms(binCenters, grouped_hMean, grouped_hMean_clean, nBins, lowerIntensity, upperIntensity);
+%%
 
 % ------------ STOP REFACTOR FOLLOWING CODE ----------- %
 
@@ -53,6 +57,7 @@ mask = stretchedSlice(:,:,slice_idx) > maxValue / 2.8;
 mask = imdilate(double(mask), strel("disk", 3)); % Dilation to remove small holes
 mask = imfill(mask, "holes"); % Fill holes
 mask = imfilter(mask, fspecial("gaussian", 10)); % Gaussian filter to smooth the mask
+%%
 
 % ------------ START OF TEST CODE ----------- %
 
@@ -70,4 +75,9 @@ se = strel("arbitrary", 2);
 imshow(imfill(imopen(imfilter(stretchedSlice(:,:,slice_idx), fspecial("gaussian", 10)), se) > nBins / 3, "holes"))
 imshow(imclose(stretchedSlice(:,:,slice_idx), se))
 
-visualizeSlices(normalizedSlice, stretchedSlice);
+if visualizeSlicesFlag
+    visualizeSlices(normalizedSlice, stretchedSlice);
+end
+
+
+disp("Code End")

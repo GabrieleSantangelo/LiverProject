@@ -17,6 +17,6 @@ function visualizeSlices(trainVolume, labelVolume)
         imshow(labelSlice, []);
         title(['Label Slice', num2str(i)]);
         
-        % pause(0.0001);
+        pause(0.01);
     end
 end
