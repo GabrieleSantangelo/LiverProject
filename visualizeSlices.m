@@ -10,11 +10,11 @@ function visualizeSlices(trainVolume, labelVolume)
         % Visualize
         figure(1); clf;
         subplot(1, 2, 1);
-        imshow(trainSlice, []);
+        imshow(trainSlice,[]);
         title(['Train Slice', num2str(i)]);
         
         subplot(1, 2, 2);
-        imshow(labelSlice, []);
+        imshow(labelSlice,[]);
         title(['Label Slice', num2str(i)]);
         
         pause(0.01);
