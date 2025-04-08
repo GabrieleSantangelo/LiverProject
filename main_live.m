@@ -32,7 +32,7 @@ maxValue = 65536;
 nBins = 65536; % Number of bins for histogram
 [meanValue, normalizedSlice_temp] = normalizingSlices(trainVolume, roiParams, maxValue);
 
-normalizedSlice_temp = histogramMachingAllSlice(normalizedSlice_temp);
+normalizedSlice = histogramMachingAllSlice(normalizedSlice_temp, 150);
 [hMean, hMean_clean] = histogramOnAllSlices(normalizedSlice, nBins);
 
 visualizeSlices(normalizedSlice, trainVolume)
@@ -46,7 +46,7 @@ plotHistograms(hMean, hMean_clean);
 groupSize = 2000;
 
 [grouped_hMean, grouped_hMean_clean, binCenters] = groupHistogramData(hMean, hMean_clean, groupSize, nBins);
-[lowerIntensity, upperIntensity] = bandDetection(grouped_hMean);
+[lowerIntensity, upperIntensity] = bandDetection(grouped_hMean, 3000000);
 
 plotGroupedHistograms(binCenters, grouped_hMean, grouped_hMean_clean, nBins, lowerIntensity, upperIntensity);
 %%
@@ -57,7 +57,7 @@ stretchedSlice = stretchSlices(normalizedSlice, lowerIntensity, upperIntensity, 
 dims = size(trainVolume);
 nSlice = dims(3);
 
-no_bones_slice = zeros(size(trainVolume,1), size(trainVolume,2), nSlice, 'uint16');
+no_bones_slice = zeros(size(trainVolume,1), size(trainVolume,2), nSlice,'uint16');
 
 
    
@@ -96,26 +96,30 @@ imshow(no_bones_slice(:,:,slice_idx));
 
 plotGroupedHistograms(binCenters, grouped_hMean_no_bones, grouped_hMean_clean_no_bones, nBins, lowerIntensity_no_bones, upperIntensity_no_bones);
 
-doubleStretchedSlice = stretchSlices(no_bones_slice, lowerIntensity_no_bones, upperIntensity_no_bones, 0.9);
 
+%%
+flag = false
 
-for slice_idx=1:nSlice
+doubleStretchedSlice = stretchSlices(no_bones_slice, lowerIntensity_no_bones, upperIntensity_no_bones, 5.8);
 
-    figure(1); clf;
-    subplot(1, 2, 1);
-    imshow(doubleStretchedSlice(:,:,slice_idx),[])
-    title(['Label Slice', num2str(slice_idx)]);
-
-    subplot(1, 2, 2);
-    imshow(no_bones_slice(:,:,slice_idx),[])
-    title(['Label Slice', num2str(slice_idx)]);
-    pause(0.0001);
+if flag
+    for slice_idx=1:nSlice
+    
+        figure(1); clf;
+        subplot(1, 2, 1);
+        imshow(doubleStretchedSlice(:,:,slice_idx))
+        title(['Label Slice', num2str(slice_idx)]);
+    
+        subplot(1, 2, 2);
+        imshow(no_bones_slice(:,:,slice_idx))
+        title(['Label Slice', num2str(slice_idx)]);
+        pause(0.0001);
+    end
 end
 
 
 
-
-mask = imfill(imerode(imfill(doubleStretchedSlice > maxValue / 14 & doubleStretchedSlice < maxValue / 3, 18, "holes"), strel('diamond', 10)), 26, "holes");
+mask = imfill(imerode(imfill(doubleStretchedSlice > maxValue / 20 & doubleStretchedSlice < maxValue / 2, 18, "holes"), strel('diamond', 10)), 26, "holes");
 
 for slice_idx=1:nSlice
     
