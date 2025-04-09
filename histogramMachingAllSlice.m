@@ -18,7 +18,7 @@ function [matchedVolume] = histogramMachingAllSlice(slices, reference_idx)
         nBins = length(unique(referenceSlice(:)));
         for i = 1:size(slices, 3)
             currentSlice = slices(:, :, i);
-            matchedVolume(:, :, i) = imhistmatch(currentSlice, referenceSlice, nBins);
+            matchedVolume(:, :, i) = imhistmatch(currentSlice, referenceSlice, 128);
         end
     end
 

@@ -2,7 +2,7 @@ clear; clc; clf;
 disp("Code Run")
 
 % Option to visualize slices
-visualizeSlicesFlag = true;
+visualizeSlicesFlag = false;
 
 
 % Load the slices from files
@@ -30,12 +30,12 @@ maxValue = 65536;
 
 % Number of bins for histogram
 nBins = 65536; % Number of bins for histogram
-[meanValue, normalizedSlice_temp] = normalizingSlices(trainVolume, roiParams, maxValue);
+[meanValue, normalizedSlice] = normalizingSlices(trainVolume, roiParams, maxValue);
 
-normalizedSlice = histogramMachingAllSlice(normalizedSlice_temp, 150);
+% normalizedSlice =  histogramMachingAllSlice(normalizedSlice_temp, 150);
 [hMean, hMean_clean] = histogramOnAllSlices(normalizedSlice, nBins);
 
-visualizeSlices(normalizedSlice, trainVolume)
+% visualizeSlices(normalizedSlice, normalizedSlice_temp)
 %%
 fprintf('Mean value in ROI: %.2f\n', meanValue);
 
@@ -98,10 +98,45 @@ plotGroupedHistograms(binCenters, grouped_hMean_no_bones, grouped_hMean_clean_no
 
 
 %%
-flag = false
+flag = true
 
-doubleStretchedSlice = stretchSlices(no_bones_slice, lowerIntensity_no_bones, upperIntensity_no_bones, 5.8);
-doubleStretchedSlice(1:150,: ,:) = 0;
+doubleStretchedSlice_temp = stretchSlices(no_bones_slice, lowerIntensity_no_bones, upperIntensity_no_bones, 5.8);
+% doubleStretchedSlice_temp(1:150,: ,:) = 0;
+%%
+for slice_idx=1:nSlice
+
+
+    % Remove high value (in this case mainly areas representing the bones)
+    mask = doubleStretchedSlice_temp(:,:,slice_idx) > maxValue * 0.07;
+    
+
+    mask = imdilate(double(mask), strel("disk", 4)); % Dilation to remove small holes
+    mask = imerode(mask, strel("disk", 3)); % Erosion to remove small holes
+    mask = imfill(mask, "holes"); % Fill holes
+    mask_array(:,:,slice_idx) = 1 - imfilter(mask, fspecial("gaussian", 10)); % Gaussian filter to smooth the mask
+
+    % tempSlice = uint16(double(doubleStretchedSlice_temp(:,:,slice_idx)) .* double(1 - mask));
+    % doubleStretchedSlice_temp2(:,:,slice_idx) = tempSlice;
+    
+    figure(1);clf;
+    imshow(mask_array(:,:,slice_idx))
+    title(slice_idx)
+
+    pause(0.001)
+end
+
+%%
+
+doubleStretchedSlice_temp2 = histogramMachingAllSlice(doubleStretchedSlice_temp, 150);
+
+
+for slice_idx=1:nSlice
+    tempSlice = uint16(double(doubleStretchedSlice_temp2(:,:,slice_idx)) .* double(1 - mask_array(:,:,slice_idx)));
+    doubleStretchedSlice(:,:,slice_idx) = kuwahara(tempSlice, 11);
+end
+%%
+
+imshow(doubleStretchedSlice(:,:,180))
 
 if flag
     for slice_idx=1:nSlice
@@ -112,11 +147,12 @@ if flag
         title(['Label Slice', num2str(slice_idx)]);
     
         subplot(1, 2, 2);
-        imshow(no_bones_slice(:,:,slice_idx))
+        imshow(doubleStretchedSlice_temp(:,:,slice_idx))
         title(['Label Slice', num2str(slice_idx)]);
         pause(0.0001);
     end
 end
+%%
 
 sliceDouble = double(doubleStretchedSlice);
 mu = mean(sliceDouble(:));
@@ -151,7 +187,7 @@ for slice_idx=1:nSlice
 end
 
 
-temp_3 = imerode(BW_final, strel('diamond', 10));
+temp_3 = imerode(temp_2, strel('diamond', 10));
 for slice_idx=1:nSlice
     figure(1); clf;
     imshow(temp_3(:,:,slice_idx))
@@ -259,5 +295,5 @@ disp("Code End")
 %[appendix]
 %---
 %[metadata:view]
-%   data: {"layout":"onright","rightPanelPercent":39.7}
+%   data: {"layout":"onright","rightPanelPercent":44.5}
 %---
