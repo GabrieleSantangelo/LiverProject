@@ -46,7 +46,7 @@ plotHistograms(hMean, hMean_clean);
 groupSize = 2000;
 
 [grouped_hMean, grouped_hMean_clean, binCenters] = groupHistogramData(hMean, hMean_clean, groupSize, nBins);
-[lowerIntensity, upperIntensity] = bandDetection(grouped_hMean, 3000000);
+[lowerIntensity, upperIntensity] = bandDetection(grouped_hMean, 3000000); % 30000 con grouped_hMean_clean | 3000000 con grouped_hMean
 
 plotGroupedHistograms(binCenters, grouped_hMean, grouped_hMean_clean, nBins, lowerIntensity, upperIntensity);
 %%
@@ -101,6 +101,7 @@ plotGroupedHistograms(binCenters, grouped_hMean_no_bones, grouped_hMean_clean_no
 flag = false
 
 doubleStretchedSlice = stretchSlices(no_bones_slice, lowerIntensity_no_bones, upperIntensity_no_bones, 5.8);
+doubleStretchedSlice(1:150,: ,:) = 0;
 
 if flag
     for slice_idx=1:nSlice
@@ -117,9 +118,58 @@ if flag
     end
 end
 
+sliceDouble = double(doubleStretchedSlice);
+mu = mean(sliceDouble(:));
+sigma = std(sliceDouble(:));
+
+lower = mu + 0.7*sigma;
+upper = mu + 3*sigma;
+
+% temp_1 = doubleStretchedSlice > maxValue / 14 & doubleStretchedSlice < maxValue / 2; %14 e 2
+% temp_1 = sliceDouble > lower & sliceDouble < upper;
+for slice_idx=1:nSlice
+
+    level = graythresh(doubleStretchedSlice(:,:,slice_idx));
+    temp_1(:,:,slice_idx) = imbinarize(doubleStretchedSlice(:,:,slice_idx), level);
+
+    figure(1); clf;
+    imshow(temp_1(:,:,slice_idx))
+    title("temp_1")
+    pause(0.0001)
+end
 
 
-mask = imfill(imerode(imfill(doubleStretchedSlice > maxValue / 20 & doubleStretchedSlice < maxValue / 2, 18, "holes"), strel('diamond', 10)), 26, "holes");
+%%
+
+
+temp_2 = imfill(temp_1, 18, "holes"); % 18
+for slice_idx=1:nSlice
+    figure(1); clf;
+    imshow(temp_2(:,:,slice_idx))
+    title("temp_2")
+    pause(0.0001)
+end
+
+
+temp_3 = imerode(BW_final, strel('diamond', 10));
+for slice_idx=1:nSlice
+    figure(1); clf;
+    imshow(temp_3(:,:,slice_idx))
+    title("temp_3")
+    pause(0.0001)
+end
+
+mask = imfill(temp_3, 26, "holes");
+
+
+for slice_idx=1:nSlice
+    figure(1); clf;
+    imshow(mask(:,:,slice_idx))
+    title("mask")
+    pause(0.0001)
+end
+
+
 
 for slice_idx=1:nSlice
     
@@ -127,7 +177,9 @@ for slice_idx=1:nSlice
     subplot(1, 2, 1);
     imshow(doubleStretchedSlice(:,:,slice_idx))
     title(['Label Slice', num2str(slice_idx)]);
-
+    
+    se = strel('disk', 7); % Prova con diversi raggi
+    mask = imopen(mask, se);
     subplot(1, 2, 2);
     imshow(mask(:,:,slice_idx),[])
     title(['Label Slice', num2str(slice_idx)]);
@@ -207,5 +259,5 @@ disp("Code End")
 %[appendix]
 %---
 %[metadata:view]
-%   data: {"layout":"onright","rightPanelPercent":47.1}
+%   data: {"layout":"onright","rightPanelPercent":39.7}
 %---
