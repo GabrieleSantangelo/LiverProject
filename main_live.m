@@ -310,7 +310,7 @@ disp('Riempimento buchi 3D...');
 filledVolume_3D = imfill(initialLiverMask_3D, 'holes');
 
 % (Opzionale) Apertura/Chiusura 3D - richiede elementi strutturanti 3D
-se_3D = strel('sphere', 3); % Esempio: sfera di raggio 2
+se_3D = strel('sphere', 5); % Esempio: sfera di raggio 2
 openedVolume_3D = imopen(filledVolume_3D, se_3D);
 cleanedVolume_3D = imclose(openedVolume_3D, se_3D); % Esempio
 
@@ -328,15 +328,16 @@ CC_3D = bwconncomp(cleanedVolume_3D, 18); % Usa connettività 26
 refinedLiverMask_3D = false(size(doubleStretchedSlice)); % Inizializza maschera finale
 
 if CC_3D.NumObjects > 0
-    disp('Selezione componente 3D più grande...');
-    % Calcola il volume (numero di voxel) di ogni componente
-    volumes = cellfun(@numel, CC_3D.PixelIdxList);
-    % Trova l'indice della componente con il volume massimo
-    [~, idxLargest] = max(volumes);
-
-    % Crea la maschera finale solo con la componente più grande
-    refinedLiverMask_3D(CC_3D.PixelIdxList{idxLargest}) = true;
+    % Create the mask with only the largest component
+    tempMask_3D = false(size(doubleStretchedSlice));
+    tempMask_3D(CC_3D.PixelIdxList{idxLargest}) = true;
     fprintf('Componente più grande selezionata (Volume: %d voxels).\n', volumes(idxLargest));
+
+    % --- Apply aggressive closing HERE ---
+    disp('Applicazione chiusura morfologica finale...');
+    % Use a larger SE than before, e.g., sphere of radius 6 or 8
+    se_final_close_3D = strel('sphere', 12); % ADJUST SIZE CAREFULLY
+    refinedLiverMask_3D = imclose(tempMask_3D, se_final_close_3D); 
 else
     disp('Nessuna componente trovata dopo la pulizia 3D.');
 end
