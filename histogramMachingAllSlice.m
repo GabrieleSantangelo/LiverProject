@@ -20,6 +20,6 @@ function [matchedVolume] = histogramMachingAllSlice(slices, reference_idx)
             currentSlice = slices(:, :, i);
             matchedVolume(:, :, i) = imhistmatch(currentSlice, referenceSlice, nBins);
         end
-    end
+    end    
 
 end
