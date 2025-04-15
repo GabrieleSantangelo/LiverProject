@@ -7,8 +7,8 @@ visualizeSlicesFlag = true;
 
 % Load the slices from files
 [trainVolume, labelVolume] = loadNiiFile(...
-    'data/imagesTr/liver_80.nii.gz', ...
-    'data/labelsTr/liver_80.nii.gz'  ...
+    'data/imagesTr/liver_3.nii.gz', ...
+    'data/labelsTr/liver_3.nii.gz'  ...
 );
 
 
@@ -110,7 +110,7 @@ doubleStretchedSlice_temp = stretchSlices(no_bones_slice, lowerIntensity_no_bone
 
 %mask_after_no_bones = doubleStretchedSlice_temp >= lowerIntensity_no_bones*maxValue*0.1 & doubleStretchedSlice_temp <= upperIntensity_no_bones*maxValue*1.1;
 %doubleStretchedSlice_temp = doubleStretchedSlice_temp.*mask_after_no_bones
-for i=1:217
+for i=1:nSlice
     figure(12);clf;
     imshow(doubleStretchedSlice_temp(:,:,i));
     pause(0.01)
@@ -203,7 +203,7 @@ end
 %%
 %------------- Segmentazione Morfologica --------------%
 
-slice_idx = 163;
+slice_idx = 433;
 slice = doubleStretchedSlice(:,:,slice_idx);
 figure;
 imshow(slice, []);
@@ -222,8 +222,8 @@ title('Istogramma della ROI nel fegato');
 % --- Soglie identificate dall'analisi ROI ---
 % Assumiamo che doubleStretchedSlice sia effettivamente in scala [0, 1]
 % Se così non fosse, dovresti riscalare queste soglie.
-lowerThreshold = 0.06;
-upperThreshold = 0.3;
+lowerThreshold = 0.09;
+upperThreshold = 0.17;
 
 % --- Ottieni dimensioni del volume ---
 dims = size(doubleStretchedSlice);
@@ -404,54 +404,45 @@ end
 
 
 %%
-% --- NUOVO BLOCCO: Post-processing con selezione componente bassa E controllo metà inferiore ---
-disp('Applicazione criterio componente più bassa e controllo metà inferiore per slice...');
-finalProcessedMask = false(size(refinedLiverMask_3D)); % Maschera per il risultato finale
+% --- INPUT INIZIALE: refinedLiverMask_3D ---
 [nRows, nCols, nSlice] = size(refinedLiverMask_3D); % Ottieni dimensioni
 
-% Calcola l'indice della prima riga della metà inferiore
-% Esempio: se nRows = 100, floor(100/2)+1 = 51. Righe 51:100 sono la metà inferiore.
-% Esempio: se nRows = 101, floor(101/2)+1 = 50+1 = 51. Righe 51:101 sono la metà inferiore.
+
+% --- FASE 1: Applica criterio componente 2D più bassa e controllo metà inferiore ---
+disp('FASE 1: Applicazione criterio componente 2D più bassa e controllo metà inferiore...');
+maskAfterStage1 = false(size(refinedLiverMask_3D)); % Maschera INTERMEDIA dopo la fase 1
+
+% Usa il tuo valore per definire la 'metà' inferiore (1.5 non è metà, ma rispetto la tua scelta)
 startRowBottomHalf = floor(nRows / 1.5) + 1; 
 
 for slice_idx = 1:nSlice
     currentSliceMask = refinedLiverMask_3D(:,:,slice_idx);
 
-    % 1. Salta se l'intera slice è vuota (come prima)
+    % Salta se l'intera slice è vuota
     if ~any(currentSliceMask(:))
         continue; 
     end
 
-    % 2. NUOVO CONTROLLO: Verifica se c'è almeno un pixel della maschera nella metà inferiore
-    % Estrai la porzione della maschera nella metà inferiore
+    % Verifica se c'è almeno un pixel nella parte 'inferiore' definita
     bottomHalfMaskPortion = currentSliceMask(startRowBottomHalf:end, :); 
-    
-    % Controlla se c'è almeno un 'true' in questa porzione
     if ~any(bottomHalfMaskPortion(:))
-        % Se non ci sono pixel 'true' nella metà inferiore, ignora questa slice.
-        % finalProcessedMask(:,:,slice_idx) rimane 'false' (valore di inizializzazione).
-        % fprintf('Slice %d ignorata: nessun pixel maschera nella metà inferiore.\n', slice_idx); % Messaggio opzionale di debug
-        continue; % Passa alla slice successiva
+        continue; 
     end
     
-    % --- Se il codice arriva qui, significa che: ---
-    % 1. La slice non è completamente vuota.
-    % 2. C'è almeno un pixel 'true' nella metà inferiore.
-    % --- Procedi con l'analisi delle componenti connesse ---
-
+    % Analisi componenti 2D
     CC_2D = bwconncomp(currentSliceMask, 8);
 
-    % Se c'è solo una componente (o nessuna, anche se abbiamo già verificato non sia vuota), 
-    % usa la maschera corrente (che soddisfa la condizione della metà inferiore).
+    % Se 0 o 1 componente, usa la maschera intera (soddisfa già i criteri)
     if CC_2D.NumObjects <= 1 
-        finalProcessedMask(:,:,slice_idx) = currentSliceMask;
+        maskAfterStage1(:,:,slice_idx) = currentSliceMask;
     else
-        % Ci sono più componenti: trova quella che si estende più in basso
+        % Più componenti: trova quella che si estende più in basso
         maxRowOverall = -1;
         idxLowestComponent = -1;
 
         for k = 1:CC_2D.NumObjects
             [rows, ~] = ind2sub([nRows, nCols], CC_2D.PixelIdxList{k});
+            if isempty(rows), continue; end % Salta componenti vuote (improbabile ma sicuro)
             currentComponentMaxRow = max(rows); 
 
             if currentComponentMaxRow > maxRowOverall
@@ -460,34 +451,79 @@ for slice_idx = 1:nSlice
             end
         end
         
-        % Crea la maschera temporanea solo con la componente più bassa
+        % Crea maschera temporanea solo con la componente più bassa trovata
         tempSliceMask = false(nRows, nCols);
         if idxLowestComponent > 0 
              tempSliceMask(CC_2D.PixelIdxList{idxLowestComponent}) = true;
         end
-        finalProcessedMask(:,:,slice_idx) = tempSliceMask;
+        maskAfterStage1(:,:,slice_idx) = tempSliceMask; % Salva il risultato nella maschera intermedia
     end
 end
-disp('Criterio componente più bassa e controllo metà inferiore applicato.');
+disp('FASE 1: Completata. Maschera intermedia creata.');
+% --- FINE FASE 1 ---
 
 
-% --- Visualizzazione (usa la maschera finale processata) ---
-disp('Visualizzazione maschera finale processata...');
+% --- FASE 2: Seleziona la Componente 3D Più Grande dalla Maschera Intermedia ---
+disp('FASE 2: Ricerca della componente 3D più grande nella maschera intermedia (risultato Fase 1)...');
+
+finalProcessedMask = false(size(maskAfterStage1)); % Inizializza maschera finale (output)
+
+% Verifica se la maschera intermedia (output della Fase 1) contiene qualcosa
+if ~any(maskAfterStage1(:))
+    disp('La maschera intermedia (dopo Fase 1) è vuota. La maschera finale sarà vuota.');
+else
+    % Trova le componenti connesse 3D nella maschera risultante dalla Fase 1
+    connectivity = 26; % Connettività 3D
+    CC_3D_Stage2 = bwconncomp(maskAfterStage1, connectivity);
+    
+    % Controlla quante componenti sono rimaste dopo la Fase 1
+    if CC_3D_Stage2.NumObjects == 0
+        disp('Nessuna componente 3D trovata nella maschera intermedia. Maschera finale vuota.');
+    elseif CC_3D_Stage2.NumObjects == 1
+         disp('Trovata una sola componente 3D dopo la Fase 1. Verrà usata quella.');
+         finalProcessedMask = maskAfterStage1; % È già la più grande
+    else
+        % Più componenti 3D rimaste: trova la più grande per volume
+        disp(['Trovate ', num2str(CC_3D_Stage2.NumObjects), ' componenti 3D (dopo Fase 1). Ricerca della più grande...']);
+        numVoxels = cellfun(@numel, CC_3D_Stage2.PixelIdxList);
+        [maxSize, idxLargestComponent] = max(numVoxels); 
+        fprintf('La componente più grande (dopo Fase 1) ha %d voxel (indice %d).\n', maxSize, idxLargestComponent);
+        
+        % Crea la maschera finale contenente solo la componente più grande trovata
+        finalProcessedMask(CC_3D_Stage2.PixelIdxList{idxLargestComponent}) = true; 
+    end
+end
+
+disp('FASE 2: Selezione della componente 3D più grande completata.');
+% --- FINE FASE 2 ---
+
+
+% --- Visualizzazione (usa la finalProcessedMask risultante dalla Fase 2) ---
+disp('Visualizzazione maschera finale processata (dopo Fase 1 + Fase 2)...');
 for slice_to_show=1:nSlice
-    figure(121); clf; % Usa una nuova figura o sovrascrivi la precedente
+    figure(121); clf; 
     subplot(1,2,1);
-    imshow(doubleStretchedSlice(:,:,slice_to_show), []);
-    title(['Slice Filtrata ', num2str(slice_to_show)]);
+     if slice_to_show <= size(doubleStretchedSlice, 3)
+        imshow(doubleStretchedSlice(:,:,slice_to_show), []);
+        title(['Slice Filtrata ', num2str(slice_to_show)]);
+     else
+         title(['Slice Filtrata ', num2str(slice_to_show), ' (Dati non disp.)']);
+     end
 
     subplot(1,2,2);
-    imshow(doubleStretchedSlice(:,:,slice_to_show), []);
+    if slice_to_show <= size(doubleStretchedSlice, 3)
+        imshow(doubleStretchedSlice(:,:,slice_to_show), []);
+    else
+         imagesc(zeros(nRows, nCols)); 
+         axis image; colormap gray;
+    end
     hold on;
-    % Usa finalProcessedMask per la visualizzazione
-    visboundaries(finalProcessedMask(:,:,slice_to_show),'Color','b', 'LineWidth', 1); % Cambiato colore in blu per distinguerla
+    % Usa la finalProcessedMask (output della Fase 2) per la visualizzazione
+    visboundaries(finalProcessedMask(:,:,slice_to_show),'Color','m', 'LineWidth', 1); % Colore Magenta
     hold off;
-    title(['Segmentazione Finale Processata (Slice ', num2str(slice_to_show), ')']);
+    title(['Finale (LowestComp & Largest3D) (Slice ', num2str(slice_to_show), ')']);
 
-    pause(0.01); % Riduci la pausa se troppo lenta
+    pause(0.01); 
 end
 
 
@@ -519,7 +555,7 @@ stetched_final = stretchSlices(no_bones_slice, 0.35, 0.55, 3);
 
 %%
 
-matchSlices = histogramMachingAllSlice(stetched_final, 150) .* mask_casted;
+matchSlices = histogramMachingAllSlice(stetched_final, 429) .* mask_casted;
 
 % gridSlices(stetched_final, 134,142)
 
@@ -528,7 +564,7 @@ matchSlices = histogramMachingAllSlice(stetched_final, 150) .* mask_casted;
 for i=1:nSlice
     figure(404); clf;
     subplot(1,2,1);
-    imshow(matchSlices(:,:,i))
+    imshow(matchSlices(:,:,i),[])
     title(i)
     subplot(1,2,2);
     imshow(labelVolume(:,:,i),[])
