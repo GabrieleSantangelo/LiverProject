@@ -2,7 +2,7 @@ clear; clc; clf;
 disp("Code Run")
 
 % Option to visualize slices
-visualizeSlicesFlag = false;
+visualizeSlicesFlag = true;
 
 
 % Load the slices from files
@@ -175,7 +175,7 @@ smoothed_slice = imbilatfilt(doubleStretchedSlice(:,:,slice_idx), DoS, sSigma);
 % 'smoothed_slice' è il risultato da usare per la segmentazione
 figure(103); clf;
 doubleStretchedSlice(:,:,slice_idx) = smoothed_slice; 
-imshow(doubleStretchedSlice(:,:,slice_idx))
+imshow(doubleStretchedSlice(:,:,slice_idx),[])
 title("BILATERALEEEEEEEEEEE")
 pause(0.001)
 end
@@ -404,53 +404,71 @@ end
 
 
 %%
-% --- NUOVO BLOCCO: Post-processing per selezionare la componente più bassa nelle slice ---
-disp('Applicazione criterio componente più bassa per slice...');
+% --- NUOVO BLOCCO: Post-processing con selezione componente bassa E controllo metà inferiore ---
+disp('Applicazione criterio componente più bassa e controllo metà inferiore per slice...');
 finalProcessedMask = false(size(refinedLiverMask_3D)); % Maschera per il risultato finale
-[nRows, nCols, nSlice] = size(refinedLiverMask_3D); % Ricalcola o usa le dimensioni già note
+[nRows, nCols, nSlice] = size(refinedLiverMask_3D); % Ottieni dimensioni
+
+% Calcola l'indice della prima riga della metà inferiore
+% Esempio: se nRows = 100, floor(100/2)+1 = 51. Righe 51:100 sono la metà inferiore.
+% Esempio: se nRows = 101, floor(101/2)+1 = 50+1 = 51. Righe 51:101 sono la metà inferiore.
+startRowBottomHalf = floor(nRows / 1.5) + 1; 
 
 for slice_idx = 1:nSlice
     currentSliceMask = refinedLiverMask_3D(:,:,slice_idx);
 
-    % Se la slice non contiene alcun pixel della maschera, passa alla successiva
+    % 1. Salta se l'intera slice è vuota (come prima)
     if ~any(currentSliceMask(:))
-        continue;
+        continue; 
     end
 
-    % Trova le componenti connesse *in questa slice 2D* (usare conn. 8 per 2D)
+    % 2. NUOVO CONTROLLO: Verifica se c'è almeno un pixel della maschera nella metà inferiore
+    % Estrai la porzione della maschera nella metà inferiore
+    bottomHalfMaskPortion = currentSliceMask(startRowBottomHalf:end, :); 
+    
+    % Controlla se c'è almeno un 'true' in questa porzione
+    if ~any(bottomHalfMaskPortion(:))
+        % Se non ci sono pixel 'true' nella metà inferiore, ignora questa slice.
+        % finalProcessedMask(:,:,slice_idx) rimane 'false' (valore di inizializzazione).
+        % fprintf('Slice %d ignorata: nessun pixel maschera nella metà inferiore.\n', slice_idx); % Messaggio opzionale di debug
+        continue; % Passa alla slice successiva
+    end
+    
+    % --- Se il codice arriva qui, significa che: ---
+    % 1. La slice non è completamente vuota.
+    % 2. C'è almeno un pixel 'true' nella metà inferiore.
+    % --- Procedi con l'analisi delle componenti connesse ---
+
     CC_2D = bwconncomp(currentSliceMask, 8);
 
-    % Se c'è solo una componente (o nessuna), la slice va bene così com'è
-    if CC_2D.NumObjects <= 1
+    % Se c'è solo una componente (o nessuna, anche se abbiamo già verificato non sia vuota), 
+    % usa la maschera corrente (che soddisfa la condizione della metà inferiore).
+    if CC_2D.NumObjects <= 1 
         finalProcessedMask(:,:,slice_idx) = currentSliceMask;
     else
-        % Ci sono più componenti disconnesse in questa slice 2D
-        % Trova quella che si estende più in basso (indice di riga massimo)
+        % Ci sono più componenti: trova quella che si estende più in basso
         maxRowOverall = -1;
         idxLowestComponent = -1;
 
         for k = 1:CC_2D.NumObjects
-            % Trova gli indici di riga dei pixel della componente k
             [rows, ~] = ind2sub([nRows, nCols], CC_2D.PixelIdxList{k});
-            currentComponentMaxRow = max(rows); % La riga più bassa di questa componente
+            currentComponentMaxRow = max(rows); 
 
             if currentComponentMaxRow > maxRowOverall
                 maxRowOverall = currentComponentMaxRow;
                 idxLowestComponent = k;
             end
         end
-
-        % Crea una maschera temporanea per la slice contenente solo la componente più bassa
+        
+        % Crea la maschera temporanea solo con la componente più bassa
         tempSliceMask = false(nRows, nCols);
-        if idxLowestComponent > 0 % Assicurati che sia stato trovato un indice valido
+        if idxLowestComponent > 0 
              tempSliceMask(CC_2D.PixelIdxList{idxLowestComponent}) = true;
         end
         finalProcessedMask(:,:,slice_idx) = tempSliceMask;
     end
 end
-disp('Criterio componente più bassa applicato.');
-
-% --- FINE NUOVO BLOCCO ---
+disp('Criterio componente più bassa e controllo metà inferiore applicato.');
 
 
 % --- Visualizzazione (usa la maschera finale processata) ---
@@ -471,6 +489,53 @@ for slice_to_show=1:nSlice
 
     pause(0.01); % Riduci la pausa se troppo lenta
 end
+
+
+%%
+image_class = class(no_bones_slice); 
+mask_casted = cast(finalProcessedMask, image_class);
+
+
+sliceFinalMask = no_bones_slice .* mask_casted;
+
+for i=1:nSlice
+    figure(404); clf;
+    imshow(sliceFinalMask(:,:,i))
+    pause(0.001);
+end
+
+%%
+[hMean_final, hMean_clean_final] = histogramOnAllSlices(sliceFinalMask, maxValue);
+
+[grouped_hMean_final, grouped_hMean_clean_final, binCenters] = groupHistogramData(hMean_final, hMean_clean_final, groupSize, nBins);
+
+
+[lowerIntensity_final, upperIntensity_final] = bandDetection(grouped_hMean_clean_final, 3000)
+
+plotGroupedHistograms(binCenters, grouped_hMean_final, grouped_hMean_clean_final, nBins, 0.35, 0.55);
+
+
+stetched_final = stretchSlices(no_bones_slice, 0.35, 0.55, 3);
+
+%%
+
+matchSlices = histogramMachingAllSlice(stetched_final, 150) .* mask_casted;
+
+% gridSlices(stetched_final, 134,142)
+
+%%
+
+for i=1:nSlice
+    figure(404); clf;
+    subplot(1,2,1);
+    imshow(matchSlices(:,:,i))
+    title(i)
+    subplot(1,2,2);
+    imshow(labelVolume(:,:,i),[])
+    pause(0.001);
+end
+
+
 %%
 % ... dopo aver ottenuto refinedLiverMask_3D con fegato+cuore ...
 
@@ -677,5 +742,5 @@ disp("Code End")
 %[appendix]
 %---
 %[metadata:view]
-%   data: {"layout":"onright","rightPanelPercent":56.1}
+%   data: {"layout":"onright","rightPanelPercent":44.8}
 %---
