@@ -7,8 +7,8 @@ visualizeSlicesFlag = true;
 
 % Load the slices from files
 [trainVolume, labelVolume] = loadNiiFile(...
-    'data/imagesTr/liver_3.nii.gz', ...
-    'data/labelsTr/liver_3.nii.gz'  ...
+    'data/imagesTr/liver_80.nii.gz', ...
+    'data/labelsTr/liver_80.nii.gz'  ...
 );
 
 
@@ -110,7 +110,7 @@ doubleStretchedSlice_temp = stretchSlices(no_bones_slice, lowerIntensity_no_bone
 
 %mask_after_no_bones = doubleStretchedSlice_temp >= lowerIntensity_no_bones*maxValue*0.1 & doubleStretchedSlice_temp <= upperIntensity_no_bones*maxValue*1.1;
 %doubleStretchedSlice_temp = doubleStretchedSlice_temp.*mask_after_no_bones
-for i=1:nSlice
+for i=1:217
     figure(12);clf;
     imshow(doubleStretchedSlice_temp(:,:,i));
     pause(0.01)
@@ -203,7 +203,7 @@ end
 %%
 %------------- Segmentazione Morfologica --------------%
 
-slice_idx = 433;
+slice_idx = 163;
 slice = doubleStretchedSlice(:,:,slice_idx);
 figure;
 imshow(slice, []);
@@ -222,8 +222,8 @@ title('Istogramma della ROI nel fegato');
 % --- Soglie identificate dall'analisi ROI ---
 % Assumiamo che doubleStretchedSlice sia effettivamente in scala [0, 1]
 % Se così non fosse, dovresti riscalare queste soglie.
-lowerThreshold = 0.09;
-upperThreshold = 0.17;
+lowerThreshold = 0.06;
+upperThreshold = 0.3;
 
 % --- Ottieni dimensioni del volume ---
 dims = size(doubleStretchedSlice);
@@ -555,7 +555,7 @@ stetched_final = stretchSlices(no_bones_slice, 0.35, 0.55, 3);
 
 %%
 
-matchSlices = histogramMachingAllSlice(stetched_final, 429) .* mask_casted;
+matchSlices = histogramMachingAllSlice(stetched_final, 197) .* mask_casted;
 
 % gridSlices(stetched_final, 134,142)
 
