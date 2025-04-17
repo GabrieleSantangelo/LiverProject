@@ -4,7 +4,7 @@ clear; clc; clf;
 disp("Code Run")
 
 % Option to visualize slices
-visualizeSlicesFlag = true;
+visualizeSlicesFlag = false;
 
 
 % Load the slices from files
@@ -80,6 +80,7 @@ for slice_idx=1:nSlice-window
     mask = imfilter(mask, fspecial("gaussian", 10)); % Gaussian filter to smooth the mask
 
     tempSlice = uint16(double(tempSlice) .* double(1 - mask));
+    bones_mask(:,:,slice_idx) = double(mask);
     end
    
     no_bones_slice(:,:,slice_idx) = tempSlice;
@@ -579,7 +580,7 @@ end
 
 
 %%
-slice_idx = 152;
+slice_idx = 157;
 slice = matchSlices_filter(:,:,slice_idx);
 figure;
 imshow(slice, []);
@@ -613,13 +614,13 @@ liverMaskVolume = finalProcessedMask; % Maschera binaria 3D del fegato
 %    ATTENZIONE: I valori dipendono molto dal preprocessing fatto prima!
 %    Guarda l'istogramma di liverIntensityVolume(liverMaskVolume) per aiutarti.
 tumorIntensityThreshold_lower = 0.045; % VALORE PURAMENTE INDICATIVO - DA CAMBIARE!
-tumorIntensityThreshold_upper = 0.175;
+tumorIntensityThreshold_upper = 0.21;
 
 % 2. Dimensione Minima Oggetti (Pulizia):
 %    Rimuove piccole regioni (rumore, vasi) dopo il thresholding.
 %    Puoi specificare un'area minima per slice (2D) o un volume minimo (3D).
 %    3D è generalmente più robusto.
-minTumorVolumeVoxels = 5000; % Volume minimo in voxel per considerare una regione come tumore -> DA REGOLARE!
+minTumorVolumeVoxels = 40000; % Volume minimo in voxel per considerare una regione come tumore -> DA REGOLARE!
 
 % 3. Elementi Strutturanti Morfologici (Opzionale, per pulizia):
 se_open_tumor = strel('disk', 6); % Per rimuovere piccole connessioni/rumore (imopen)
@@ -673,7 +674,7 @@ fprintf('Raffinamento morfologico 3D completato in %.2f secondi.\n', elapsedTime
 
 % --- Visualizzazione Finale Tumori ---
 disp('Visualizzazione segmentazione finale tumori...');
-for slice_idx = 1:size(liverIntensityVolume, 3)
+for slice_idx = 120:size(liverIntensityVolume, 3)
     figure(500); clf; % Usa un nuovo numero di figura
 
     subplot(1,2,1);
@@ -810,11 +811,97 @@ end
 
 
 %%
-imshow(labelVolume(:,:,157)==1,[])
+disp('--- Inizio Ricostruzione 3D (isosurface) ---');
 
-imshow(liver_mask_pred(:,:,157)==1,[])
+bones_mask_2 = imopen(bones_mask, strel("sphere", 2));
+
+% --- Parametri ---
+liverColor = [0 1 0]; % Verde per il fegato
+tumorColor = [1 0 0]; % Rosso per il tumore
+bonesColor = [1 1 0.94];
 
 
+liverAlpha = 0.4;     % Trasparenza per il fegato (per vedere il tumore dentro)
+tumorAlpha = 1.0;     % Opaco per il tumore
+bonesAlpha = 1.0;
+smoothing = true;     % Applica smoothing per superfici meno "a blocchi"?
+smoothFactor = 5;     % Fattore di smoothing (se attivo)
+
+% Assicurati che le maschere siano logiche
+liver_mask_pred = logical(liverMaskVolume);
+tumor_mask_pred = logical(finalTumorMask);
+
+% --- Crea la Figura ---
+figure;
+hold on; % Mantiene gli oggetti nella stessa figura
+
+% --- Ricostruzione Fegato ---
+fprintf('Ricostruzione superficie fegato...\n');
+% Converte in double per isosurface e smoothing
+mask_double_liver = double(liver_mask_pred);
+if smoothing
+    mask_double_liver = smooth3(mask_double_liver, 'gaussian', smoothFactor);
+end
+% Calcola la superficie (al livello 0.5 per maschere binarie)
+[faces_liver, verts_liver] = isosurface(mask_double_liver, 0.5);
+% Disegna la patch (superficie)
+h_liver = patch('Faces', faces_liver, 'Vertices', verts_liver);
+% Imposta proprietà grafiche
+set(h_liver, 'FaceColor', liverColor, 'EdgeColor', 'none', 'FaceAlpha', liverAlpha);
+fprintf('Fegato disegnato.\n');
+
+% --- Ricostruzione Tumore ---
+% (Solo se ci sono voxel tumorali)
+if any(tumor_mask_pred(:))
+    fprintf('Ricostruzione superficie tumore...\n');
+    mask_double_tumor = double(tumor_mask_pred);
+     if smoothing
+        mask_double_tumor = smooth3(mask_double_tumor, 'gaussian', smoothFactor);
+    end
+    [faces_tumor, verts_tumor] = isosurface(mask_double_tumor, 0.5);
+    h_tumor = patch('Faces', faces_tumor, 'Vertices', verts_tumor);
+    set(h_tumor, 'FaceColor', tumorColor, 'EdgeColor', 'none', 'FaceAlpha', tumorAlpha);
+    fprintf('Tumore disegnato.\n');
+else
+    fprintf('Nessun tumore trovato nella maschera predetta, skip ricostruzione tumore.\n');
+end
+
+
+% --- Ricostruzione Ossa ---
+% (Solo se ci sono voxel tumorali)
+if any(bones_mask(:))
+    fprintf('Ricostruzione superficie tumore...\n');
+    mask_double_bones = double(bones_mask_2);
+     if smoothing
+        mask_double_bones = smooth3(mask_double_bones, 'gaussian', smoothFactor);
+    end
+    [faces_bones, verts_bones] = isosurface(mask_double_bones, 0.5);
+    h_bones = patch('Faces', faces_bones, 'Vertices', verts_bones);
+    set(h_bones, 'FaceColor', bonesColor, 'EdgeColor', 'none', 'FaceAlpha', bonesAlpha);
+    fprintf('Ossa disegnate.\n');
+else
+    fprintf('Nessun tumore trovato nella maschera predetta, skip ricostruzione tumore.\n');
+end
+
+% --- Impostazioni Finali Vista 3D ---
+hold off;
+title('Ricostruzione 3D - Fegato (Verde Trasparente) e Tumore (Rosso Opaco)');
+xlabel('X'); ylabel('Y'); zlabel('Z');
+grid on;        % Mostra griglia
+axis equal;     % Assicura che le proporzioni siano corrette
+view(3);        % Imposta la vista 3D standard
+camlight;       % Aggiunge una luce per migliorare la visualizzazione
+lighting gouraud; % Tipo di illuminazione
+rotate3d on;    % Permette la rotazione interattiva con il mouse
+
+disp('--- Fine Ricostruzione 3D (isosurface) ---');
+
+%%
+for i = 1:207
+    figure(123);clf;
+    imshow(bones_mask(:,:,i),[]);
+    pause(0.01);
+end
 
 %[appendix]
 %---
