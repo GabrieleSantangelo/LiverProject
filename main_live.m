@@ -613,14 +613,14 @@ liverMaskVolume = finalProcessedMask; % Maschera binaria 3D del fegato
 %    una soglia potrebbe essere intorno a 8000-10000.
 %    ATTENZIONE: I valori dipendono molto dal preprocessing fatto prima!
 %    Guarda l'istogramma di liverIntensityVolume(liverMaskVolume) per aiutarti.
-tumorIntensityThreshold_lower = 0.045; % VALORE PURAMENTE INDICATIVO - DA CAMBIARE!
-tumorIntensityThreshold_upper = 0.21;
+tumorIntensityThreshold_lower = 0.03; % VALORE PURAMENTE INDICATIVO - DA CAMBIARE!
+tumorIntensityThreshold_upper = 0.23;
 
 % 2. Dimensione Minima Oggetti (Pulizia):
 %    Rimuove piccole regioni (rumore, vasi) dopo il thresholding.
 %    Puoi specificare un'area minima per slice (2D) o un volume minimo (3D).
 %    3D è generalmente più robusto.
-minTumorVolumeVoxels = 5000; % Volume minimo in voxel per considerare una regione come tumore -> DA REGOLARE!
+minTumorVolumeVoxels = 30000; % Volume minimo in voxel per considerare una regione come tumore -> DA REGOLARE!
 
 % 3. Elementi Strutturanti Morfologici (Opzionale, per pulizia):
 se_open_tumor = strel('disk', 3); % Per rimuovere piccole connessioni/rumore (imopen)
