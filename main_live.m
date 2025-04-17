@@ -519,6 +519,7 @@ sliceFinalMask = no_bones_slice .* mask_casted;
 for i=1:nSlice
     figure(404); clf;
     imshow(sliceFinalMask(:,:,i))
+
     pause(0.001);
 end
 
@@ -530,14 +531,14 @@ end
 
 [lowerIntensity_final, upperIntensity_final] = bandDetection(grouped_hMean_clean_final, 3000)
 
-plotGroupedHistograms(binCenters, grouped_hMean_final, grouped_hMean_clean_final, nBins, 0.35, 0.55);
+plotGroupedHistograms(binCenters, grouped_hMean_final, grouped_hMean_clean_final, nBins, 0.42, 0.55);
 
 
-stetched_final = stretchSlices(no_bones_slice, 0.35, 0.55, 3);
+stetched_final = stretchSlices(no_bones_slice, 0.42, 0.55, 2);
 
 %%
 
-matchSlices = histogramMachingAllSlice(stetched_final, 197) .* mask_casted;
+matchSlices = histogramMachingAllSlice(stetched_final, 150) .* mask_casted;
 
 % gridSlices(stetched_final, 134,142)
 
@@ -554,12 +555,271 @@ for i=1:nSlice
 end
 
 
+%%
+DoS = 0.04; % Regola questo (Degree of Smoothing)
+sSigma = 7;
+
+h = waitbar(0);
+for slice_idx=1:nSlice
+     waitbar(slice_idx/nSlice, h);
+    % tempSlice = uint16(double(doubleStretchedSlice_final(:,:,slice_idx)) .* double(1 - mask_array(:,:,slice_idx)));
+    % doubleStretchedSlice(:,:,slice_idx) = kuwahara(tempSlice, 19);
+    matchSlices_filter(:,:,slice_idx) = imbilatfilt(double(double(matchSlices(:,:,slice_idx))./maxValue), DoS, sSigma);
+end
+%%
+for i=1:nSlice
+    figure(404); clf;
+    subplot(1,2,1);
+    imshow(matchSlices_filter(:,:,i),[])
+    title(i)
+    subplot(1,2,2);
+    imshow(labelVolume(:,:,i),[])
+    pause(0.001);
+end
+
+
+%%
+slice_idx = 152;
+slice = matchSlices_filter(:,:,slice_idx);
+figure;
+imshow(slice, []);
+title('Disegna una ROI nel fegato');
+roi = drawpolygon; % O drawpolygon, drawellipse...
+wait(roi); % Attendi che l'utente finisca di disegnare
+mask = createMask(roi);
+liver_pixels = slice(mask); % Estrai i pixel della ROI
+figure;
+imhist(liver_pixels);
+title('Istogramma della ROI nel fegato');
+
+
+%%
+disp('--- Inizio Segmentazione Tumori ---');
+
+% --- Input per la segmentazione dei tumori ---
+liverIntensityVolume = matchSlices_filter;     % Volume con intensità solo del fegato (già mascherato)
+liverMaskVolume = finalProcessedMask; % Maschera binaria 3D del fegato
+
+% --- Parametri per la segmentazione dei tumori (DA REGOLARE!) ---
+
+% 1. Soglia di Intensità:
+%    Identifica i pixel candidati ad essere tumore (più scuri).
+%    Questo è il parametro PIÙ CRITICO. Ispeziona i valori in matchSlices(:,:,157)
+%    nelle aree tumorali (cerchiate) e nel fegato sano circostante.
+%    Scegli un valore che sia SOTTO l'intensità del fegato sano ma SOPRA
+%    l'intensità dei tumori. Potrebbe richiedere prove.
+%    ESEMPIO: Se i tumori hanno intensità ~5000 e il fegato ~15000,
+%    una soglia potrebbe essere intorno a 8000-10000.
+%    ATTENZIONE: I valori dipendono molto dal preprocessing fatto prima!
+%    Guarda l'istogramma di liverIntensityVolume(liverMaskVolume) per aiutarti.
+tumorIntensityThreshold_lower = 0.045; % VALORE PURAMENTE INDICATIVO - DA CAMBIARE!
+tumorIntensityThreshold_upper = 0.175;
+
+% 2. Dimensione Minima Oggetti (Pulizia):
+%    Rimuove piccole regioni (rumore, vasi) dopo il thresholding.
+%    Puoi specificare un'area minima per slice (2D) o un volume minimo (3D).
+%    3D è generalmente più robusto.
+minTumorVolumeVoxels = 5000; % Volume minimo in voxel per considerare una regione come tumore -> DA REGOLARE!
+
+% 3. Elementi Strutturanti Morfologici (Opzionale, per pulizia):
+se_open_tumor = strel('disk', 6); % Per rimuovere piccole connessioni/rumore (imopen)
+se_close_tumor = strel('disk', 3);% Per chiudere piccoli buchi nei tumori (imclose)
+% Per operazioni 3D, potresti usare: strel('sphere', 1) o strel('sphere', 2)
+
+% --- Fase 1: Thresholding Iniziale ---
+% Crea una maschera binaria iniziale: pixel nel fegato SOTTO la soglia
+% Assicurati che liverIntensityVolume non sia vuoto o contenga solo zeri
+initialTumorMask = false(size(liverIntensityVolume));
+validLiverPixels = liverMaskVolume & (liverIntensityVolume > 0); % Pixel del fegato con intensità > 0
+initialTumorMask(validLiverPixels) = (liverIntensityVolume(validLiverPixels) >= tumorIntensityThreshold_lower & liverIntensityVolume(validLiverPixels) <= tumorIntensityThreshold_upper);
+
+disp('Thresholding iniziale per tumori completato.');
+
+% --- Fase 2: Raffinamento Morfologico e Selezione Componenti (3D) ---
+disp('Inizio raffinamento morfologico 3D e rimozione piccoli oggetti...');
+tic;
+
+% 1. (Opzionale) Apertura Morfologica 3D: Rimuove piccole protuberanze/rumore
+%    Potrebbe rimuovere anche tumori molto piccoli se se_open_tumor è grande
+openedMask_3D = imopen(initialTumorMask, strel('sphere', 5)); % Usa strel 3D
+% Potresti preferire applicare l'apertura 2D slice-by-slice se la 3D è troppo aggressiva
+% openedMask_3D = false(size(initialTumorMask));
+for k=1:size(initialTumorMask, 3)
+    openedMask_3D(:,:,k) = imopen(initialTumorMask(:,:,k), se_open_tumor);
+end
+currentMask = openedMask_3D; % Maschera da usare per i passi successivi
+
+% 2. Rimuovi Oggetti Piccoli (Basato sul Volume 3D)
+%    Questa è spesso la pulizia più efficace. Usa bwareaopen in modalità 3D.
+%    La connettività 18 o 26 è comune per il 3D.
+connectivity_3d = 18; % o 26
+cleanedTumorMask_3D = bwareaopen(currentMask, minTumorVolumeVoxels, connectivity_3d);
+
+% 3. (Opzionale) Chiusura Morfologica 3D: Riempie piccoli buchi interni
+% closedMask_3D = imclose(cleanedTumorMask_3D, se_3D_tumor); % Usa strel 3D
+% Oppure slice-by-slice:
+closedMask_3D = false(size(cleanedTumorMask_3D));
+for k=1:size(cleanedTumorMask_3D, 3)
+     closedMask_3D(:,:,k) = imclose(cleanedTumorMask_3D(:,:,k), se_close_tumor);
+     closedMask_3D(:,:,k) = imfill( closedMask_3D(:,:,k),"holes");
+end
+finalTumorMask = closedMask_3D; % Maschera finale dopo la pulizia
+
+% 4. (Opzionale Extra) Riempimento Buchi Completo (se necessario)
+finalTumorMask = imfill(finalTumorMask, 'holes'); % Funziona in 3D
+
+elapsedTimeTumor = toc;
+fprintf('Raffinamento morfologico 3D completato in %.2f secondi.\n', elapsedTimeTumor);
+
+% --- Visualizzazione Finale Tumori ---
+disp('Visualizzazione segmentazione finale tumori...');
+for slice_idx = 1:size(liverIntensityVolume, 3)
+    figure(500); clf; % Usa un nuovo numero di figura
+
+    subplot(1,2,1);
+    imshow(labelVolume(:,:,slice_idx), []);
+    title(['Fegato Preprocessato (Slice ', num2str(slice_idx), ')']);
+
+    subplot(1,2,2);
+    imshow(liverIntensityVolume(:,:,slice_idx), []);
+    hold on;
+    % Mostra contorno fegato (verde) e tumori (rosso)
+    visboundaries(liverMaskVolume(:,:,slice_idx), 'Color', 'g', 'LineWidth', 0.5, 'LineStyle', ':'); % Contorno fegato
+    visboundaries(finalTumorMask(:,:,slice_idx), 'Color', 'r', 'LineWidth', 1); % Contorno tumori
+    hold off;
+    title(['Fegato (Verde) e Tumori Rilevati (Rosso) - Slice ', num2str(slice_idx)]);
+
+    drawnow;
+    pause(0.01); % Pausa per visualizzazione
+end
+
+disp('--- Fine Segmentazione Tumori ---');
+
+% La variabile 'finalTumorMask' ora contiene la maschera 3D binaria
+% delle masse tumorali identificate.
+
+%%
+% --- INIZIO CODICE VALUTAZIONE ---
+% Qui finisce il tuo codice di segmentazione. Le variabili importanti sono:
+% labelVolume: Ground Truth (0, 1, 2)
+% liverMaskVolume: Predizione maschera Fegato (logica 0/1)
+% finalTumorMask: Predizione maschera Tumore (logica 0/1)
+
+disp('--- Inizio Calcolo Metriche di Valutazione ---');
+
+% --- Preparazione Maschere Predette (assicurati siano logiche) ---
+liver_mask_pred = logical(liverMaskVolume);
+tumor_mask_pred = logical(finalTumorMask);
+
+% --- Preparazione Maschere Ground Truth ---
+tumor_mask_gt = (labelVolume == 2);
+liver_mask_gt = (labelVolume == 1) | tumor_mask_gt; % SOLO fegato GT
+
+% --- 1. Calcolo Recall (Sensitivity) ---
+%    (Questa parte usa le maschere predette separate ed è corretta)
+
+fprintf('\n--- Recall (Sensitivity) ---\n');
+% Valutazione Fegato (solo label 1)
+tp_liver = sum(liver_mask_pred(:) & liver_mask_gt(:));
+total_gt_liver = sum(liver_mask_gt(:));
+if total_gt_liver > 0
+    liver_recall = tp_liver / total_gt_liver;
+else
+    liver_recall = NaN; % O 1.0 se tp_liver è 0? Dipende da interpretazione
+end
+fprintf('Recall Fegato (TP / GT Fegato): %.4f%%  (TP=%d, Totale GT=%d)\n', liver_recall *100, tp_liver, total_gt_liver);
+
+% Valutazione Tumore (label 2)
+tp_tumor = sum(tumor_mask_pred(:) & tumor_mask_gt(:));
+total_gt_tumor = sum(tumor_mask_gt(:));
+if total_gt_tumor > 0
+    tumor_recall = tp_tumor / total_gt_tumor;
+else
+    tumor_recall = NaN; % O 1.0 se tp_tumor è 0?
+end
+fprintf('Recall Tumore (TP / GT Tumore): %.4f%%  (TP=%d, Totale GT=%d)\n', tumor_recall*100, tp_tumor, total_gt_tumor);
+
+
+% --- 2. Calcolo Dice Score (Metrica Standard) ---
+%    (Questa parte richiede la costruzione di predictionVolume con etichette 0, 1, 2)
+
+fprintf('\n--- Dice Score ---\n');
+% COSTRUZIONE di predictionVolume dalle maschere predette:
+predictionVolume = zeros(size(labelVolume), 'like', labelVolume); % Inizializza a 0 (background)
+predictionVolume(liver_mask_pred) = 1; % Imposta fegato predetto a 1
+predictionVolume(tumor_mask_pred) = 2; % Imposta tumore predetto a 2 (sovrascrive fegato se necessario)
+disp('Volume di Predizione (0,1,2) costruito.');
+
+% Ora puoi chiamare la funzione per il Dice Score
+% Assicurati che la funzione sia nel path di MATLAB o nella stessa cartella
+try
+    scores = calculateDiceScoresMATLAB(labelVolume, predictionVolume, [1, 2]); % Passa GT e Predizione (0,1,2)
+    disp('Dice Scores calcolati:');
+    disp(scores);
+
+    % Calcolo opzionale dello score medio (ignorando NaN)
+    all_scores = struct2array(scores);
+    valid_scores = all_scores(~isnan(all_scores)); % Rimuove NaN
+    if ~isempty(valid_scores)
+        mean_dice = mean(valid_scores);
+        fprintf('Mean Dice Score (su classi valide): %.4f\n', mean_dice);
+    else
+        disp('Nessuno score Dice valido calcolato per la media.');
+    end
+
+catch ME
+    warning('Errore durante il calcolo del Dice Score. Assicurati che la funzione "calculateDiceScoresMATLAB" sia disponibile.');
+    disp(ME.message);
+    scores = struct(); % Crea una struct vuota per evitare errori dopo
+end
+
+disp('--- Fine Calcolo Metriche di Valutazione ---');
+
+
+% --- Parte Grafica (già presente nel tuo codice) ---
+% La visualizzazione che hai implementato alla fine della segmentazione
+% mostra già l'overlay della maschera predetta (finalTumorMask in rosso)
+% sull'immagine del fegato preprocessato, che è un ottimo modo per
+% vedere graficamente il risultato della *tua segmentazione*.
+
+% Se vuoi confrontare graficamente la TUA predizione (rossa) con il
+% GROUND TRUTH (blu), puoi modificare quella visualizzazione:
+
+disp('Visualizzazione comparativa GT vs Predizione (slice per slice)...');
+[row, col, nSlice] = size(labelVolume); % Prendi nSlice da labelVolume
+for slice_idx = 1:nSlice % Usa nSlice corretto
+    figure(600); clf; % Usa un altro numero di figura per non sovrascrivere
+
+    imshow(liverIntensityVolume(:,:,slice_idx), []); % Mostra immagine base
+    hold on;
+
+    % Contorni Ground Truth (es. blu e ciano)
+    visboundaries(tumor_mask_gt(:,:,slice_idx), 'Color', 'b', 'LineWidth', 1, 'LineStyle', '-'); % GT Tumore
+    visboundaries(liver_mask_gt(:,:,slice_idx), 'Color', 'c', 'LineWidth', 0.5, 'LineStyle', '-'); % GT Fegato (solo label 1)
+
+    % Contorni Predizione (es. rosso e giallo)
+    visboundaries(tumor_mask_pred(:,:,slice_idx), 'Color', 'r', 'LineWidth', 1, 'LineStyle', '--'); % Predizione Tumore
+    visboundaries(liver_mask_pred(:,:,slice_idx), 'Color', 'y', 'LineWidth', 0.5, 'LineStyle', '--'); % Predizione Fegato
+
+    hold off;
+    title(sprintf('Slice %d: GT (blu/ciano) vs Pred (rosso/giallo)', slice_idx));
+
+    drawnow;
+    pause(0.05); % Pausa leggermente più lunga per vedere
+end
+
+
+%%
+imshow(labelVolume(:,:,157)==1,[])
+
+imshow(liver_mask_pred(:,:,157)==1,[])
+
 
 
 %[appendix]
 %---
 %[metadata:view]
-%   data: {"layout":"inline","rightPanelPercent":44.8}
+%   data: {"layout":"onright","rightPanelPercent":43.7}
 %---
 %[control:slider:431b]
 %   data: {"defaultValue":0,"label":"lowerThreshold","max":0.2,"min":0,"run":"Section","runOn":"ValueChanging","step":0.01}
