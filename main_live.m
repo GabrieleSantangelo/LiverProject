@@ -620,10 +620,10 @@ tumorIntensityThreshold_upper = 0.21;
 %    Rimuove piccole regioni (rumore, vasi) dopo il thresholding.
 %    Puoi specificare un'area minima per slice (2D) o un volume minimo (3D).
 %    3D è generalmente più robusto.
-minTumorVolumeVoxels = 40000; % Volume minimo in voxel per considerare una regione come tumore -> DA REGOLARE!
+minTumorVolumeVoxels = 5000; % Volume minimo in voxel per considerare una regione come tumore -> DA REGOLARE!
 
 % 3. Elementi Strutturanti Morfologici (Opzionale, per pulizia):
-se_open_tumor = strel('disk', 6); % Per rimuovere piccole connessioni/rumore (imopen)
+se_open_tumor = strel('disk', 3); % Per rimuovere piccole connessioni/rumore (imopen)
 se_close_tumor = strel('disk', 3);% Per chiudere piccoli buchi nei tumori (imclose)
 % Per operazioni 3D, potresti usare: strel('sphere', 1) o strel('sphere', 2)
 
@@ -645,9 +645,7 @@ tic;
 openedMask_3D = imopen(initialTumorMask, strel('sphere', 5)); % Usa strel 3D
 % Potresti preferire applicare l'apertura 2D slice-by-slice se la 3D è troppo aggressiva
 % openedMask_3D = false(size(initialTumorMask));
-for k=1:size(initialTumorMask, 3)
-    openedMask_3D(:,:,k) = imopen(initialTumorMask(:,:,k), se_open_tumor);
-end
+
 currentMask = openedMask_3D; % Maschera da usare per i passi successivi
 
 % 2. Rimuovi Oggetti Piccoli (Basato sul Volume 3D)
