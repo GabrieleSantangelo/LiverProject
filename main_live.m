@@ -1,4 +1,6 @@
 clear; clc; clf;
+%%
+
 disp("Code Run")
 
 % Option to visualize slices
@@ -11,7 +13,7 @@ visualizeSlicesFlag = true;
     'data/labelsTr/liver_80.nii.gz'  ...
 );
 
-
+disp(size(trainVolume))
 % Visualize the slices
 if visualizeSlicesFlag
     visualizeSlices(trainVolume, labelVolume);
@@ -32,7 +34,6 @@ maxValue = 65536;
 % Number of bins for histogram
 nBins = 65536; % Number of bins for histogram
 [meanValue, normalizedSlice] = normalizingSlices(trainVolume, roiParams, maxValue);
-
 % normalizedSlice =  histogramMachingAllSlice(normalizedSlice_temp, 150);
 [hMean, hMean_clean] = histogramOnAllSlices(normalizedSlice, nBins);
 
@@ -150,8 +151,8 @@ for slice_idx=1:nSlice
     pause(0.0001)
 end
 %%
-DoS = 0.1; % Regola questo (Degree of Smoothing)
-sSigma = 10;
+DoS = 0.04; % Regola questo (Degree of Smoothing)
+sSigma = 4;
 
 h = waitbar(0);
 for slice_idx=1:nSlice
@@ -159,25 +160,6 @@ for slice_idx=1:nSlice
     % tempSlice = uint16(double(doubleStretchedSlice_final(:,:,slice_idx)) .* double(1 - mask_array(:,:,slice_idx)));
     % doubleStretchedSlice(:,:,slice_idx) = kuwahara(tempSlice, 19);
     doubleStretchedSlice(:,:,slice_idx) = imbilatfilt(double(double(doubleStretchedSlice_final(:,:,slice_idx))./maxValue), DoS, sSigma);
-end
-
-%%
-%[text] ## Bilaterale \-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-
-% Assumendo che l'input sia 'img_input' (es. tempSlice o l'output di Kuwahara)
-% Assicurati che sia double e preferibilmente in scala [0, 1]
-
-DoS = 0.6; % Regola questo (Degree of Smoothing)
-sSigma = 5; % Regola questo (Spatial Sigma)
-
-for slice_idx=1:nSlice
-smoothed_slice = imbilatfilt(doubleStretchedSlice(:,:,slice_idx), DoS, sSigma);
-
-% 'smoothed_slice' è il risultato da usare per la segmentazione
-figure(103); clf;
-doubleStretchedSlice(:,:,slice_idx) = smoothed_slice; 
-imshow(doubleStretchedSlice(:,:,slice_idx),[])
-title("BILATERALEEEEEEEEEEE")
-pause(0.001)
 end
 
 %%
@@ -203,7 +185,7 @@ end
 %%
 %------------- Segmentazione Morfologica --------------%
 
-slice_idx = 163;
+slice_idx = 156;
 slice = doubleStretchedSlice(:,:,slice_idx);
 figure;
 imshow(slice, []);
@@ -222,8 +204,8 @@ title('Istogramma della ROI nel fegato');
 % --- Soglie identificate dall'analisi ROI ---
 % Assumiamo che doubleStretchedSlice sia effettivamente in scala [0, 1]
 % Se così non fosse, dovresti riscalare queste soglie.
-lowerThreshold = 0.06;
-upperThreshold = 0.3;
+lowerThreshold = 0.06 %[control:slider:431b]{"position":[18,22]}
+upperThreshold = 0.28 %[control:slider:32e1]{"position":[18,22]}
 
 % --- Ottieni dimensioni del volume ---
 dims = size(doubleStretchedSlice);
@@ -572,211 +554,16 @@ for i=1:nSlice
 end
 
 
-%%
-% ... dopo aver ottenuto refinedLiverMask_3D con fegato+cuore ...
 
-disp('Calcolo centroide 3D per taglio verticale...');
-props = regionprops3(refinedLiverMask_3D, 'Centroid');
-
-if ~isempty(props)
-    centroid_3D = props.Centroid(1,:); % Assumendo ci sia solo 1 oggetto nella maschera
-    centroid_Z_slice = round(centroid_3D(3)); % Coordinata Z (indice slice) del centroide
-
-    fprintf('Centroide Z trovato alla slice: %d. Rimuovo maschera sopra questa slice.\n', centroid_Z_slice);
-
-    % Rimuovi tutto dalla slice del centroide in su (o regola +1/-1 se necessario)
-    refinedLiverMask_3D(:,:, centroid_Z_slice:end) = false; 
-
-else
-    disp('Attenzione: impossibile calcolare il centroide (maschera vuota?).');
-end
-
-
-for slice_to_show=1:nSlice
-% slice_to_show = 180;
-figure(121); clf;
-subplot(1,2,1); imshow(doubleStretchedSlice(:,:,slice_to_show), []); title(['Slice Filtrata ', num2str(slice_to_show)]);
-subplot(1,2,2); imshow(doubleStretchedSlice(:,:,slice_to_show), []); hold on;
-visboundaries(refinedLiverMask_3D(:,:,slice_to_show),'Color','g', 'LineWidth', 1); hold off;
-title(['Segmentazione Finale 3D (Slice ', num2str(slice_to_show), ')']);
-pause(0.01);
-end
-
-
-%------------- FINE Segmentazione Morfologica --------------%
-%%
-for slice_idx=1:nSlice
-    figure(410); clf;
-    imshow(imfill(imclose(edge(imfilter(doubleStretchedSlice(:,:,slice_idx), fspecial("average", 10))), strel("diamond", 10)), "holes"))
-    pause(0.0001)
-end
-
-
-%%
-for slice_idx=1:nSlice
-    figure(415); clf;
-
-    slice = doubleStretchedSlice(:,:,slice_idx) > 0.1;
-
-    % slice = imdilate(slice, strel("diamond", 5));
-    slice = imfill(slice, "holes");
-    slice = imerode(slice, strel("disk", 8));
-    slice = imdilate(slice, strel("diamond", 5));
-    slice = imfill(slice, 18 ,"holes");
-    slice = imerode(slice, strel("disk", 5));
-    slice = imfill(slice, "holes");
-    slice = imerode(slice, strel("disk", 5));
-    slice = imfill(slice, "holes");
-    slice = imerode(slice, strel("disk", 7));
-    slice = imfill(slice, "holes");
-    % slice = imfilter(double(imfilter(double(slice), fspecial("average", 1)) > 0.5), fspecial("average", 1)) > 0.5
-    imshow(slice)
-
-    pause(0.0001)
-end
-
-%%
-
-sliceDouble = double(doubleStretchedSlice);
-mu = mean(sliceDouble(:));
-sigma = std(sliceDouble(:));
-
-lower = mu + 0.7*sigma;
-upper = mu + 3*sigma;
-
-% temp_1 = doubleStretchedSlice > maxValue / 14 & doubleStretchedSlice < maxValue / 2; %14 e 2
-% temp_1 = sliceDouble > lower & sliceDouble < upper;
-for slice_idx=1:nSlice
-
-    level = graythresh(doubleStretchedSlice(:,:,slice_idx));
-    temp_1(:,:,slice_idx) = imbinarize(doubleStretchedSlice(:,:,slice_idx), level);
-
-    figure(1); clf;
-    imshow(temp_1(:,:,slice_idx))
-    title("temp_1")
-    pause(0.0001)
-end
-
-
-%%
-
-
-temp_2 = imfill(temp_1, 18, "holes"); % 18
-for slice_idx=1:nSlice
-    figure(1); clf;
-    imshow(temp_2(:,:,slice_idx))
-    title("temp_2")
-    pause(0.0001)
-end
-
-
-temp_3 = imerode(temp_2, strel('diamond', 10));
-for slice_idx=1:nSlice
-    figure(1); clf;
-    imshow(temp_3(:,:,slice_idx))
-    title("temp_3")
-    pause(0.0001)
-end
-
-mask = imfill(temp_3, 26, "holes");
-
-
-for slice_idx=1:nSlice
-    figure(1); clf;
-    imshow(mask(:,:,slice_idx))
-    title("mask")
-    pause(0.0001)
-end
-
-
-
-for slice_idx=1:nSlice
-    
-    figure(1); clf;
-    subplot(1, 2, 1);
-    imshow(doubleStretchedSlice(:,:,slice_idx))
-    title(['Label Slice', num2str(slice_idx)]);
-    
-    se = strel('disk', 7); % Prova con diversi raggi
-    mask = imopen(mask, se);
-    subplot(1, 2, 2);
-    imshow(mask(:,:,slice_idx),[])
-    title(['Label Slice', num2str(slice_idx)]);
-    pause(0.0001);
-end
-%%
-% ------------ START OF TEST CODE ----------- %
-%slice_idx = 154
-mod = zeros(size(trainVolume,1), size(trainVolume,2), nSlice, 'uint16');
-
-for slice_idx=1:nSlice
-
-    figure(2); clf;
-    tempSlice = doubleStretchedSlice(:,:,slice_idx);
-    
-    [~,threshold] = edge(tempSlice,'sobel');
-    fudgeFactor = 0.5;
-    BWs = edge(tempSlice,'sobel',threshold * fudgeFactor);
-
-    subplot(1, 2, 1);
-    imshow(tempSlice);
-    
-    se90 = strel('line',3,90);
-    se0 = strel('line',3,0);
-    
-    BWsdil = imdilate(BWs,[se90 se0]);
-    %imshow(BWsdil)
-    %title('Dilated Gradient Mask')
-    
-    BWdfill = imfill(BWsdil,'holes');
-    %imshow(BWdfill)
-    %title('Binary Image with Filled Holes')
-    
-    
-    BWnobord = imclearborder(BWdfill,4);
-    %imshow(BWnobord)
-    %title('Cleared Border Image')
-    
-    seD = strel('diamond',1);
-    BWfinal = imerode(BWnobord,seD);
-    BWfinal = imerode(BWfinal,seD);
-    %imshow(BWfinal)
-    %title('Segmented Image');
-    
-    % seD5 = strel('diamond',8);
-    % BWfinal = imopen(BWfinal, seD5);
-    %imshow(BWfinal)
-    %title("AntoMetod")
-
-    subplot(1, 2, 2);
-    imshow(BWfinal)
-    title(['Label Slice', num2str(slice_idx)]);
-
-    pause(0.01);
-    %mod(:,:,slice_idx) = BWfinal;
-
-end
-
-%visualizeSlices(mod, labelVolume)
-%%
-
-figure;
-% Visualizzazione della slice modificata
-imshow(doubleStretchedSlice(:,:,slice_idx));
-se_open = strel("disk", 8);
-
-figure;
-imshow(imopen(imfill(imfilter(doubleStretchedSlice(:,:,slice_idx), fspecial("disk", 3)) > nBins / 6, "holes"), se_open))
-
-if visualizeSlicesFlag
-    visualizeSlices(normalizedSlice, stretchedSlice);
-end
-
-
-disp("Code End")
 
 %[appendix]
 %---
 %[metadata:view]
-%   data: {"layout":"onright","rightPanelPercent":44.8}
+%   data: {"layout":"inline","rightPanelPercent":44.8}
+%---
+%[control:slider:431b]
+%   data: {"defaultValue":0,"label":"lowerThreshold","max":0.2,"min":0,"run":"Section","runOn":"ValueChanging","step":0.01}
+%---
+%[control:slider:32e1]
+%   data: {"defaultValue":0,"label":"upperThreshold","max":0.3,"min":0,"run":"Section","runOn":"ValueChanging","step":0.01}
 %---
