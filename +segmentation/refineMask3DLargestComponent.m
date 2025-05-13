@@ -32,6 +32,7 @@ function refinedMask3D = refineMask3DLargestComponent(initialMask, sphereStrelRa
 
     if verbose
         slice_to_show = round(size(initialMask,3)/2);
+        for slice_to_show = 1:217
         figure(202); clf;
         if nargin > 6 && ~isempty(displayVolume)
             subplot(1,2,1); imshow(displayVolume(:,:,slice_to_show),[]); title(sprintf('Base Im Slice %d', slice_to_show));
@@ -44,5 +45,6 @@ function refinedMask3D = refineMask3DLargestComponent(initialMask, sphereStrelRa
             subplot(1,2,2); imshow(refinedMask3D(:,:,slice_to_show),[]); title('3D Refined Mask');
         end
         drawnow; pause(pauseDuration);
+        end
     end
 end

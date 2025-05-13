@@ -43,7 +43,7 @@ function [volumeWithoutArtifacts, artifactMaskCombined] = removeHighIntensityArt
         volumeWithoutArtifacts(:,:,slice_idx) = uint16(double(tempSlice) .* double(~cumulativeMaskForSlice));
         artifactMaskCombined(:,:,slice_idx) = cumulativeMaskForSlice;
         
-        if verbose && mod(slice_idx, 20) == 0 % Display occasionally
+        if verbose && mod(slice_idx, 1) == 0 % Display occasionally
             figure(100); clf;
             subplot(1,2,1); imshow(baseVolume(:,:,slice_idx)); title(sprintf('Base Slice %d', slice_idx));
             subplot(1,2,2); imshow(volumeWithoutArtifacts(:,:,slice_idx)); title(sprintf('Cleaned Slice %d', slice_idx));

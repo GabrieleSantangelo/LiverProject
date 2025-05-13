@@ -1,4 +1,4 @@
-function initialLiverMask = segmentLiverByThreshold2D(volume, lowerThreshold, upperThreshold, imfillConn, openStrelDiskSize, verbose, pauseDuration)
+function initialLiverMask = segmentLiverByThreshold2D(volume, lowerThreshold, upperThreshold, imfillConn, openStrelDiskSize, maxValue, verbose, pauseDuration)
 % segmentLiverByThreshold2D Segments liver initially using 2D thresholding and morphological operations per slice.
 %
 % Args:
@@ -18,7 +18,7 @@ function initialLiverMask = segmentLiverByThreshold2D(volume, lowerThreshold, up
     se_open = strel('disk', openStrelDiskSize);
 
     for slice_idx = 1:nSlices
-        currentSlice = volume(:,:,slice_idx);
+        currentSlice = double(double(volume(:,:,slice_idx)) / double(maxValue));
         mask_slice = (currentSlice >= lowerThreshold) & (currentSlice <= upperThreshold);
         
         % Using imfillConn for 2D slices, typically 4 or 8.

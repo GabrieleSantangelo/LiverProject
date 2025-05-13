@@ -20,13 +20,13 @@ function viewVolumeSlices(volume1, volume2, titleStr, pauseDuration)
         clf; % Clear current figure
         if ~isempty(volume2)
             subplot(1, 2, 1);
-            imshow(volume1(:, :, i), []);
+            imshow(volume1(:, :, i));
             title(sprintf('Volume 1 - Slice %d/%d', i, nSlices));
             subplot(1, 2, 2);
-            imshow(volume2(:, :, i), []);
+            imshow(volume2(:, :, i));
             title(sprintf('Volume 2 - Slice %d/%d', i, nSlices));
         else
-            imshow(volume1(:, :, i), []);
+            imshow(volume1(:, :, i));
             title(sprintf('Slice %d/%d', i, nSlices));
         end
         drawnow;

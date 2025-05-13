@@ -40,16 +40,21 @@ function [lowerIntensityNorm, upperIntensityNorm] = detectHistogramBand(histogra
     meanFreq = mean(histogram);
 
     for i = 1:(dim - 1)
+
+        if histogram(i) > meanFreq
+            continue
+        end
+        
         % Find lower bound: first significant positive slope from left, below mean frequency
-        if histogram(i) <= meanFreq && slopes(i) > k_slope_threshold && lowerIntensityNorm == 0
+        if slopes(i) > k_slope_threshold && lowerIntensityNorm == 0
             lowerIntensityNorm = i / dim;
         end
 
         % Find upper bound: first significant negative slope from right, below mean frequency
         % Index from right for slopes is (dim - i). Bin index is (dim - i).
         current_idx_from_right = dim - i; % This is the index for 'slopes' and 'histogram'
-        if histogram(current_idx_from_right) <= meanFreq && slopes(current_idx_from_right) < -k_slope_threshold && upperIntensityNorm == 1
-            upperIntensityNorm = current_idx_from_right / dim;
+        if slopes(current_idx_from_right) < -k_slope_threshold && upperIntensityNorm == 1
+            upperIntensityNorm = i / dim;
             % Note: The original 'bandDetection.m' had 'upperIntensity = i / dim;' here,
             % which seemed counter-intuitive. This version uses the actual index from the right.
         end

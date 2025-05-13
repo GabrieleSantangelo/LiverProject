@@ -24,7 +24,8 @@ function matchedVolume = matchHistogramToReference(inputVolume, referenceSliceIn
             currentSlice = inputVolume(:, :, i);
             referenceSlice = matchedVolume(:, :, i-1); % Use previously matched slice
             % nBins for imhistmatch can be tricky; default 256 or adaptive
-            matchedVolume(:, :, i) = imhistmatch(currentSlice, referenceSlice);
+            nBins = length(unique(referenceSlice(:)));
+            matchedVolume(:, :, i) = imhistmatch(currentSlice, referenceSlice, nBins);
 
             % Update waitbar if handle is valid
             if ~isempty(wb_handle) && isvalid(wb_handle)
@@ -34,8 +35,9 @@ function matchedVolume = matchHistogramToReference(inputVolume, referenceSliceIn
     else
         % Match all slices to a single reference slice
         referenceSlice = inputVolume(:, :, referenceSliceIndex);
+        nBins = length(unique(referenceSlice(:)));
         for i = 1:nSlices
-            matchedVolume(:, :, i) = imhistmatch(inputVolume(:, :, i), referenceSlice);
+            matchedVolume(:, :, i) = imhistmatch(inputVolume(:, :, i), referenceSlice, nBins);
 
             % Update waitbar if handle is valid
             if ~isempty(wb_handle) && isvalid(wb_handle)

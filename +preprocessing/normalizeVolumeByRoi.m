@@ -31,7 +31,7 @@ function [normalizedVolume, roiMeanValue] = normalizeVolumeByRoi(inputVolume, ro
 
         % Shift and normalize intensity (mimicking original logic)
         sliceShifted = currentSlice + 1024; % Original shift value
-        sliceNormDouble = double(sliceShifted) ./ double(outputMaxValue);
+        sliceNormDouble = double(sliceShifted) / double(outputMaxValue);
         
         % Stretch to [0, 1]
         minVal = min(sliceNormDouble(:));
@@ -41,12 +41,13 @@ function [normalizedVolume, roiMeanValue] = normalizeVolumeByRoi(inputVolume, ro
         else
             sliceStretched = imadjust(sliceNormDouble, [minVal maxVal], [0 1]);
         end
-        processedSlices(:, :, i) = uint16(sliceStretched .* double(outputMaxValue));
+        processedSlices(:, :, i) = uint16(sliceStretched * double(outputMaxValue));
 
         % Compute mean and max in ROI for the processed slice
         [X, Y] = meshgrid(1:nCols, 1:nRows);
         mask = (X - roiParams.x).^2 + (Y - roiParams.y).^2 <= roiParams.r.^2;
-        roiPixels = processedSlices(mask & (processedSlices(:,:,i) > 0)); % Consider only non-zero pixels in ROI
+        currentProcessedSlice = processedSlices(:,:,i);
+        roiPixels = currentProcessedSlice(mask); % Consider only non-zero pixels in ROI
         if ~isempty(roiPixels)
             partialRoiMeans(i) = mean(roiPixels);
             partialRoiMaxs(i) = max(roiPixels);
@@ -57,8 +58,8 @@ function [normalizedVolume, roiMeanValue] = normalizeVolumeByRoi(inputVolume, ro
     end
 
     % Calculate global mean of ROI means and global mean of ROI maxs
-    roiMeanValue = mean(partialRoiMeans(partialRoiMeans > 0)); % Average of valid means
-    meanOfRoiMaxs = mean(partialRoiMaxs(partialRoiMaxs > 0)); % Average of valid maxs
+    roiMeanValue = mean(partialRoiMeans); % Average of valid means
+    meanOfRoiMaxs = mean(partialRoiMaxs); % Average of valid maxs
     if isnan(roiMeanValue), roiMeanValue = 0; end
     if isnan(meanOfRoiMaxs), meanOfRoiMaxs = double(outputMaxValue); end % Fallback
 
