@@ -29,7 +29,7 @@ function structureMaskArray = createStructureMask(inputVolume, maxValue, params,
         
         structureMaskArray(:,:,slice_idx) = ~(smoothed_mask > 0.5); % Invert: true for regions to KEEP
 
-        if verbose && mod(slice_idx, 20) == 0
+        if verbose && mod(slice_idx, 1) == 0
             figure(101); clf;
             imshow(~structureMaskArray(:,:,slice_idx)); % Show regions being masked out
             title(sprintf('Secondary Structure Mask (masked out) - Slice %d', slice_idx));

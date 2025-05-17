@@ -31,20 +31,19 @@ function refinedMask3D = refineMask3DLargestComponent(initialMask, sphereStrelRa
     end
 
     if verbose
-        slice_to_show = round(size(initialMask,3)/2);
-        for slice_to_show = 1:217
-        figure(202); clf;
-        if nargin > 6 && ~isempty(displayVolume)
-            subplot(1,2,1); imshow(displayVolume(:,:,slice_to_show),[]); title(sprintf('Base Im Slice %d', slice_to_show));
-            hold on; visboundaries(initialMask(:,:,slice_to_show),'Color','y'); hold off;
-            subplot(1,2,2); imshow(displayVolume(:,:,slice_to_show),[]); title('3D Refined Mask');
-            hold on; visboundaries(refinedMask3D(:,:,slice_to_show),'Color','g'); hold off;
-        else
-            % Fallback if displayVolume is not provided
-            subplot(1,2,1); imshow(initialMask(:,:,slice_to_show),[]); title(sprintf('Initial Mask Slice %d', slice_to_show));
-            subplot(1,2,2); imshow(refinedMask3D(:,:,slice_to_show),[]); title('3D Refined Mask');
-        end
-        drawnow; pause(pauseDuration);
+        for slice_to_show=1:size(initialMask, 3)
+            figure(202); clf;
+            if nargin > 6 && ~isempty(displayVolume)
+                subplot(1,2,1); imshow(displayVolume(:,:,slice_to_show),[]); title(sprintf('Base Im Slice %d', slice_to_show));
+                hold on; visboundaries(initialMask(:,:,slice_to_show),'Color','y'); hold off;
+                subplot(1,2,2); imshow(displayVolume(:,:,slice_to_show),[]); title('3D Refined Mask');
+                hold on; visboundaries(refinedMask3D(:,:,slice_to_show),'Color','g'); hold off;
+            else
+                % Fallback if displayVolume is not provided
+                subplot(1,2,1); imshow(initialMask(:,:,slice_to_show),[]); title(sprintf('Initial Mask Slice %d', slice_to_show));
+                subplot(1,2,2); imshow(refinedMask3D(:,:,slice_to_show),[]); title('3D Refined Mask');
+            end
+            drawnow; pause(pauseDuration);
         end
     end
 end

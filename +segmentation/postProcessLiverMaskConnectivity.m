@@ -61,12 +61,13 @@ function finalProcessedMask = postProcessLiverMaskConnectivity(inputMask3D, nRow
     end
 
     if verbose
-        slice_to_show = round(nSlices/2);
-        figure(203); clf;
-        subplot(1,2,1); imshow(displayVolume(:,:,slice_to_show),[]); title(sprintf('Base Im Slice %d', slice_to_show));
-        visboundaries(inputMask3D(:,:,slice_to_show),'Color','y');
-        subplot(1,2,2); imshow(displayVolume(:,:,slice_to_show),[]); title('Post-processed Liver Mask (Connectivity)');
-        visboundaries(finalProcessedMask(:,:,slice_to_show),'Color','m');
-        drawnow; pause(pauseDuration);
+        for slice_to_show=1:size(inputMask3D, 3)
+            figure(203); clf;
+            subplot(1,2,1); imshow(displayVolume(:,:,slice_to_show),[]); title(sprintf('Base Im Slice %d', slice_to_show));
+            hold on; visboundaries(inputMask3D(:,:,slice_to_show),'Color','y'); hold off;
+            subplot(1,2,2); imshow(displayVolume(:,:,slice_to_show),[]); title('Post-processed Liver Mask (Connectivity)');
+            hold on; visboundaries(finalProcessedMask(:,:,slice_to_show),'Color','m'); hold off;
+            drawnow; pause(pauseDuration);
+        end
     end
 end

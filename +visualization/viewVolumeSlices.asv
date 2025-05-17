@@ -1,4 +1,4 @@
-function viewVolumeSlices(volume1, volume2, titleStr, pauseDuration, adaptToRange1, adaptToRange2)
+function viewVolumeSlices(volume1, volume2, titleStr, pauseDuration, adaptToRange1, )
 % viewVolumeSlices Displays slices from one or two 3D volumes side-by-side.
 %
 % Args:
@@ -12,8 +12,7 @@ function viewVolumeSlices(volume1, volume2, titleStr, pauseDuration, adaptToRang
     if nargin < 2, volume2 = []; end
     if nargin < 3 || isempty(titleStr), titleStr = 'Slice Viewer'; end
     if nargin < 4 || isempty(pauseDuration), pauseDuration = 0.001; end
-    if nargin < 5 || isempty(adaptToRange1), adaptToRange1 = false; end
-    if nargin < 6 || isempty(adaptToRange2), adaptToRange2 = false; end
+    if nargin < 5 || isempty(adaptToRange), adaptToRange = false; end
 
     nSlices = size(volume1, 3);
     
@@ -22,21 +21,21 @@ function viewVolumeSlices(volume1, volume2, titleStr, pauseDuration, adaptToRang
         clf; % Clear current figure
         if ~isempty(volume2)
             subplot(1, 2, 1);
-            if adaptToRange1
+            if adaptToRange
                 imshow(volume1(:, :, i), []);
             else
                 imshow(volume1(:, :, i));
             end
             title(sprintf('Volume 1 - Slice %d/%d', i, nSlices));
             subplot(1, 2, 2);
-            if adaptToRange2
+            if adaptToRange
                 imshow(volume2(:, :, i), []);
             else
                 imshow(volume2(:, :, i));
             end
             title(sprintf('Volume 2 - Slice %d/%d', i, nSlices));
         else
-            if adaptToRange1
+            if adaptToRange
                 imshow(volume1(:, :, i), []);
             else
                 imshow(volume1(:, :, i));

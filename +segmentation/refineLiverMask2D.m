@@ -34,7 +34,7 @@ function refinedMask2D = refineLiverMask2D(initialMask, minArea, seCloseDisk, se
         end
         refinedMask2D(:,:,slice_idx) = finalSlice;
 
-        if verbose && mod(slice_idx, 20) == 0
+        if verbose && mod(slice_idx, 1) == 0
             figure(201); clf;
             subplot(1,2,1); imshow(initialMask(:,:,slice_idx)); title(sprintf('Initial Mask Slice %d', slice_idx));
             subplot(1,2,2); imshow(finalSlice); title('2D Refined Mask');

@@ -28,7 +28,7 @@ function initialLiverMask = segmentLiverByThreshold2D(volume, lowerThreshold, up
         mask_opened = imopen(mask_fill, se_open);
         initialLiverMask(:,:,slice_idx) = mask_opened;
         
-        if verbose && mod(slice_idx, 20) == 0
+        if verbose && mod(slice_idx, 1) == 0
             figure(200); clf;
             subplot(1,2,1); imshow(currentSlice); title(sprintf('Filtered Slice %d', slice_idx));
             subplot(1,2,2); imshow(mask_opened); title('Initial Liver Mask');

@@ -1,4 +1,4 @@
-function finalTumorMask = segmentTumors(liverIntensityVolume, liverMask, lowerThresh, upperThresh, minTumorVol, openSphereRad, closeDiskRad2D, conn3D, verbose, pauseDur, labelVolumeForViz)
+function finalTumorMask = segmentTumors(liverIntensityVolume, liverMask, lowerThresh, upperThresh, minTumorVol, openSphereRad, closeDiskRad2D, conn3D, maxValue, verbose, pauseDur, labelVolumeForViz)
 % segmentTumors Segments tumors within a given liver mask.
 %
 % Args:
@@ -16,6 +16,8 @@ function finalTumorMask = segmentTumors(liverIntensityVolume, liverMask, lowerTh
 %
 % Returns:
 %   finalTumorMask (logical array): 3D binary mask of detected tumors.
+
+    liverIntensityVolume = double(liverIntensityVolume) / double(maxValue);
 
     initialTumorMask = false(size(liverIntensityVolume));
     validLiverPixels = liverMask & (liverIntensityVolume > 0); % Consider only non-zero pixels within liver
@@ -42,15 +44,13 @@ function finalTumorMask = segmentTumors(liverIntensityVolume, liverMask, lowerTh
     finalTumorMask = imfill(finalTumorMask, 'holes'); % Final 3D fill
 
     if verbose
-        slice_to_show = round(size(liverIntensityVolume,3)/2);
-        if slice_to_show == 0 && size(liverIntensityVolume,3) > 0, slice_to_show = 1; end
-        if slice_to_show > 0
+        for slice_to_show=1:size(liverIntensityVolume, 3)
             figure(204); clf;
             subplot(1,2,1); imshow(liverIntensityVolume(:,:,slice_to_show),[]); title(sprintf('Input Intensity Slice %d', slice_to_show));
-            visboundaries(liverMask(:,:,slice_to_show),'Color','g', 'LineStyle', ':');
+            hold on; visboundaries(liverMask(:,:,slice_to_show),'Color','g', 'LineStyle', ':'); hold off;
             subplot(1,2,2); imshow(liverIntensityVolume(:,:,slice_to_show),[]); title('Detected Tumors (Red)');
-            visboundaries(liverMask(:,:,slice_to_show),'Color','g', 'LineStyle', ':');
-            visboundaries(finalTumorMask(:,:,slice_to_show),'Color','r');
+            hold on; visboundaries(liverMask(:,:,slice_to_show),'Color','g', 'LineStyle', ':');
+            visboundaries(finalTumorMask(:,:,slice_to_show),'Color','r'); hold off;
             if nargin > 10 && ~isempty(labelVolumeForViz)
                 subplot(1,2,1); hold on; visboundaries(labelVolumeForViz(:,:,slice_to_show)==2, 'Color', 'b', 'LineStyle', '--'); hold off; title('Input + GT Tumor (Blue)');
             end
